@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Elamanovich — Личная галерея</title>
+<style>
+  :root{
+    --bg:#f7f7f8; --card:#ffffff; --muted:#6b7280; --accent:#0b69ff; --shadow: 0 6px 18px rgba(15,23,42,0.06);
+  }
+  body{font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background:var(--bg); color:#111827; margin:0;}
+  header{background:var(--card); padding:18px 20px; display:flex; align-items:center; justify-content:space-between; box-shadow:var(--shadow); position:sticky; top:0; z-index:10;}
+  h1{margin:0; font-size:18px;}
+  .subtitle{color:var(--muted); font-size:13px;}
+  main{max-width:1100px; margin:28px auto; padding:0 16px;}
+  .controls{display:flex; gap:8px; align-items:center; margin-bottom:18px;}
+  .btn{background:var(--accent); color:white; padding:8px 12px; border-radius:8px; border:0; cursor:pointer;}
+  .btn.ghost{background:transparent; color:var(--accent); border:1px solid rgba(11,105,255,0.12);}
+  .panel{background:var(--card); padding:16px; border-radius:12px; box-shadow:var(--shadow); margin-bottom:16px;}
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:12px;}
+  .thumb{background:linear-gradient(90deg, #fff, #f8fafc); padding:8px; border-radius:10px; overflow:hidden; display:flex; flex-direction:column; gap:8px; align-items:center; text-align:center;}
+  .thumb img{width:100%; height:120px; object-fit:cover; border-radius:8px;}
+  .meta{font-size:13px; color:var(--muted); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; width:100%;}
+  .modal{position:fixed; inset:0; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; padding:20px; z-index:50;}
+  .card{background:var(--card); padding:16px; border-radius:12px; max-width:1000px; width:100%; max-height:90vh; overflow:auto; box-shadow:0 10px 40px rgba(2,6,23,0.15);}
+  label{display:block; font-weight:600; margin-top:8px; font-size:13px;}
+  input[type="text"], textarea, select{width:100%; padding:10px; border-radius:8px; border:1px solid #e6e9ef; margin-top:6px; box-sizing:border-box; font-size:14px;}
+  textarea{min-height:80px; resize:vertical;}
+  .row{display:flex; gap:8px;}
+  .row .col{flex:1;}
+  footer{color:var(--muted); text-align:center; margin:24px 0 60px;}
+  .small{font-size:12px; color:var(--muted);}
+  .top-actions{display:flex; gap:8px; align-items:center;}
+  .search{padding:8px 12px; border-radius:10px; border:1px solid #e6e9ef; width:220px;}
+  .hidden{display:none;}
+  .tag{background:#eef6ff; color:var(--accent); padding:6px 8px; border-radius:10px; font-size:12px;}
+  .danger{background:#ffeef0; color:#d32f2f; border:1px solid rgba(211,47,47,0.08);}
+  @media (max-width:600px){ .grid{grid-template-columns:repeat(2,1fr);} }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Elamanovich</h1>
+    <div class="subtitle">Личная галерея — закрытая • светлая тема</div>
+  </div>
+  <div class="top-actions">
+    <input id="search" class="search" placeholder="Поиск по названию или описанию">
+    <div id="userStatus" class="small">🔒 Закрыто</div>
+  </div>
+</header>
+
+<main>
+  <div class="panel">
+    <div class="controls">
+      <button class="btn" id="btnAddPhoto">Добавить фото</button>
+      <button class="btn" id="btnAddVideo">Добавить видео</button>
+      <button class="btn ghost" id="btnImport">Импорт JSON</button>
+      <button class="btn ghost" id="btnExport">Экспорт JSON</button>
+      <button class="btn ghost danger" id="btnClear">Очистить (локально)</button>
+      <div style="flex:1"></div>
+      <button class="btn ghost" id="btnSettings">Настройки</button>
+    </div>
+    <div class="small">Инструкция: загружай файлы в Google Drive/pCloud → ставь ссылку "доступ по ссылке" → вставляй URL как "Ссылка на файл". Файлы остаются в твоём облаке, сайт лишь их отображает.</div>
+  </div>
+
+  <div class="panel">
+    <h3>Фото</h3>
+    <div id="photos" class="grid"></div>
+  </div>
+
+  <div class="panel">
+    <h3>Видео</h3>
+    <div id="videos" class="grid"></div>
+  </div>
+
+  <div class="panel">
+    <h3>Архив</h3>
+    <div id="archive" class="grid"></div>
+  </div>
+
+  <footer>
+    <div>Сайт Elamanovich — личная галерея. Данные хранятся в браузере и в твоём облаке.</div>
+    <div class="small">Рекомендация: делай экспорт JSON как бэкап раз в месяц.</div>
+  </footer>
+</main>
+
+<!-- Modals -->
+<div id="modalLock" class="modal hidden">
+  <div class="card">
+    <h2>Доступ к Elamanovich</h2>
+    <div class="small">Это приватная галерея. Если ты впервые, создай пароль. Пароль хранится только в твоём браузере (localStorage).</div>
+    <label>Пароль</label>
+    <input id="pwInput" type="password" autocomplete="new-password" placeholder="Придумай пароль..."/>
+    <div style="margin-top:12px; display:flex; gap:8px;">
+      <button class="btn" id="pwSave">Сохранить и войти</button>
+      <button class="btn ghost" id="pwCancel">Выйти</button>
+    </div>
+  </div>
+</div>
+
+<div id="modalAdd" class="modal hidden">
+  <div class="card">
+    <h3 id="modalTitle">Добавить</h3>
+    <label>Тип</label>
+    <select id="itemType"><option value="photo">Фото</option><option value="video">Видео</option><option value="archive">Архив</option></select>
+    <label>Название</label>
+    <input id="itemTitle" type="text" placeholder="Название (например: Отпуск 2024)"/>
+    <label>Описание (необязательно)</label>
+    <textarea id="itemDesc" placeholder="Краткое описание"></textarea>
+    <div class="row">
+      <div class="col">
+        <label>Ссылка на файл</label>
+        <input id="itemUrl" type="text" placeholder="Вставь URL на Google Drive / pCloud / YouTube и т.д."/>
+      </div>
+      <div style="width:160px;">
+        <label>Тег</label>
+        <input id="itemTag" type="text" placeholder="Например: отпуск"/>
+      </div>
+    </div>
+    <div style="margin-top:10px; display:flex; gap:8px; justify-content:flex-end;">
+      <button class="btn" id="saveItem">Сохранить</button>
+      <button class="btn ghost" id="cancelItem">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<div id="modalView" class="modal hidden">
+  <div class="card" id="viewCard">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h3 id="viewTitle">Просмотр</h3>
+      <div>
+        <button class="btn ghost" id="btnDownload">Скачать</button>
+        <button class="btn ghost" id="btnCloseView">Закрыть</button>
+      </div>
+    </div>
+    <div id="viewBody" style="margin-top:12px;">Загрузка...</div>
+    <div id="viewDesc" class="small" style="margin-top:8px;"></div>
+  </div>
+</div>
+
+<input id="importFile" type="file" accept=".json" style="display:none;">
+
+<script>
+// Simple client-side app storing data in localStorage. No data leaves your browser.
+// Data structure: {photos:[], videos:[], archive:[], settings:{passwordHash:...}}
+// Utility
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+function saveDB(db){ localStorage.setItem('elamanovich_db', JSON.stringify(db)); }
+function loadDB(){ const raw = localStorage.getItem('elamanovich_db'); if(!raw) return {photos:[], videos:[], archive:[], settings:{}}; try{return JSON.parse(raw);}catch(e){return {photos:[], videos:[], archive:[], settings:{}};} }
+function hash(s){ let h=2166136261; for(let i=0;i<s.length;i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h>>>0).toString(16); }
+
+// Auth (client-side)
+let db = loadDB();
+function showLock(){ document.getElementById('modalLock').classList.remove('hidden'); }
+function hideLock(){ document.getElementById('modalLock').classList.add('hidden'); }
+function isLocked(){ const pwSet = db.settings && db.settings.passwordHash; if(!pwSet) return true; const entered = sessionStorage.getItem('el_pw'); return entered !== db.settings.passwordHash; }
+
+function initAuth(){
+  if(!db.settings) db.settings = {};
+  if(!db.settings.passwordHash){
+    showLock();
+    document.getElementById('pwSave').onclick = ()=>{
+      const v = document.getElementById('pwInput').value.trim();
+      if(!v){ alert('Придумай пароль'); return; }
+      db.settings.passwordHash = hash(v);
+      saveDB(db); sessionStorage.setItem('el_pw', db.settings.passwordHash); hideLock(); renderAll(); updateStatus();
+    };
+    document.getElementById('pwCancel').onclick = ()=>{ alert('Пароль не задан. Закрой страницу, чтобы выйти.'); };
+  } else {
+    if(isLocked()){
+      showLock();
+      document.getElementById('pwSave').onclick = ()=>{
+        const v = document.getElementById('pwInput').value.trim();
+        if(hash(v) === db.settings.passwordHash){ sessionStorage.setItem('el_pw', db.settings.passwordHash); hideLock(); renderAll(); updateStatus(); } else { alert('Неверный пароль'); }
+      };
+      document.getElementById('pwCancel').onclick = ()=>{ alert('Выйди из страницы, чтобы не войти.'); };
+    } else {
+      hideLock();
+    }
+  }
+}
+
+function updateStatus(){ document.getElementById('userStatus').textContent = isLocked() ? '🔒 Закрыто' : '🔓 Открыто'; }
+
+// Rendering
+function renderGrid(list, containerId, type){
+  const c = document.getElementById(containerId);
+  c.innerHTML = '';
+  list.forEach(item=>{
+    const d = document.createElement('div'); d.className='thumb';
+    const img = document.createElement('img');
+    if(type==='photo'){
+      img.src = item.thumb || item.url;
+    } else {
+      img.src = item.thumb || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width=\"400\" height=\"300\"><rect width=\"100%\" height=\"100%\" fill=\"%23f3f4f6\"/><text x=\"50%\" y=\"50%\" dominant-baseline=\"middle\" text-anchor=\"middle\" fill=\"%236b7280\" font-size=\"20\">Видео</text></svg>';
+    }
+    img.onerror = ()=>{ img.src = 'data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"400\" height=\"300\"><rect width=\"100%\" height=\"100%\" fill=\"%23f3f4f6\"/><text x=\"50%\" y=\"50%\" dominant-baseline=\"middle\" text-anchor=\"middle\" fill=\"%236b7280\" font-size=\"18\">Не загружено</text></svg>'; };
+    d.appendChild(img);
+    const t=document.createElement('div'); t.className='meta'; t.textContent = item.title || 'Без названия';
+    d.appendChild(t);
+    const tags=document.createElement('div'); tags.className='small'; tags.textContent = item.tag || '';
+    d.appendChild(tags);
+    d.onclick = ()=>{ openView(item); };
+    c.appendChild(d);
+  });
+}
+
+function renderAll(){
+  db = loadDB();
+  renderGrid(db.photos, 'photos', 'photo');
+  renderGrid(db.videos, 'videos', 'video');
+  renderGrid(db.archive, 'archive', 'archive');
+  updateStatus();
+}
+
+// Modals & actions
+document.getElementById('btnAddPhoto').onclick = ()=>{ openAddModal('photo'); };
+document.getElementById('btnAddVideo').onclick = ()=>{ openAddModal('video'); };
+document.getElementById('btnImport').onclick = ()=>{ document.getElementById('importFile').click(); };
+document.getElementById('btnExport').onclick = ()=>{ exportJSON(); };
+document.getElementById('btnClear').onclick = ()=>{ if(confirm('Полностью удалить все данные локально?')){ localStorage.removeItem('elamanovich_db'); db = {photos:[], videos:[], archive:[], settings:{}}; renderAll(); alert('Очищено'); } };
+document.getElementById('btnSettings').onclick = ()=>{ alert('Пароль и данные хранятся в твоём браузере. Делай экспорт JSON как бэкап.'); };
+
+document.getElementById('importFile').addEventListener('change', (e)=>{
+  const f = e.target.files[0]; if(!f) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const obj = JSON.parse(reader.result);
+      if(confirm('Импортировать данные и перезаписать локально?')){ localStorage.setItem('elamanovich_db', JSON.stringify(obj)); db = loadDB(); renderAll(); alert('Импорт завершён'); }
+    }catch(err){ alert('Ошибка: неверный файл'); }
+  };
+  reader.readAsText(f);
+});
+
+function openAddModal(type){
+  document.getElementById('modalAdd').classList.remove('hidden');
+  document.getElementById('modalTitle').textContent = type==='photo'?'Добавить фото': 'Добавить видео';
+  document.getElementById('itemType').value = type;
+  document.getElementById('itemTitle').value=''; document.getElementById('itemDesc').value=''; document.getElementById('itemUrl').value=''; document.getElementById('itemTag').value='';
+}
+
+document.getElementById('cancelItem').onclick = ()=>{ document.getElementById('modalAdd').classList.add('hidden'); };
+document.getElementById('saveItem').onclick = ()=>{
+  const type = document.getElementById('itemType').value;
+  const title = document.getElementById('itemTitle').value.trim() || 'Без названия';
+  const desc = document.getElementById('itemDesc').value.trim();
+  const url = document.getElementById('itemUrl').value.trim();
+  const tag = document.getElementById('itemTag').value.trim();
+  if(!url){ alert('Вставь ссылку на файл в облаке'); return; }
+  const item = {id: uid(), title, desc, url, tag, thumb: url};
+  if(type==='photo'){ db.photos.unshift(item); } else if(type==='video'){ db.videos.unshift(item); } else { db.archive.unshift(item); }
+  saveDB(db); renderAll(); document.getElementById('modalAdd').classList.add('hidden');
+};
+
+function openView(item){
+  document.getElementById('modalView').classList.remove('hidden');
+  document.getElementById('viewTitle').textContent = item.title || 'Просмотр';
+  const body = document.getElementById('viewBody'); body.innerHTML='';
+  // if video (youtube or direct mp4) embed, else image
+  if(item.url.match(/youtube\.com|youtu\.be/)){
+    // embed YouTube
+    const id = (item.url.match(/v=([^&]+)/) || item.url.match(/youtu\.be\/([^?]+)/) || [])[1] || item.url;
+    const iframe = document.createElement('iframe'); iframe.width='100%'; iframe.height='480'; iframe.src = 'https://www.youtube.com/embed/' + id; iframe.frameBorder=0; iframe.allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture'; iframe.allowFullscreen=true;
+    body.appendChild(iframe);
+  } else if(item.url.match(/\.(mp4|mov|webm)(\?|$)/i) || item.url.includes('drive.google.com')){
+    // try video tag or Google Drive preview
+    if(item.url.includes('drive.google.com')){
+      // convert drive share link to preview embed if possible
+      const m = item.url.match(/\/d\/([^/]+)\//);
+      const id = m ? m[1] : (item.url.match(/id=([^&]+)/) || [])[1];
+      if(id){
+        const iframe = document.createElement('iframe'); iframe.width='100%'; iframe.height='480'; iframe.src = 'https://drive.google.com/file/d/' + id + '/preview'; iframe.frameBorder=0; iframe.allowFullscreen=true; body.appendChild(iframe);
+      } else {
+        const v = document.createElement('video'); v.controls=true; v.src = item.url; v.style.width='100%'; body.appendChild(v);
+      }
+    } else {
+      const v = document.createElement('video'); v.controls=true; v.src = item.url; v.style.width='100%'; body.appendChild(v);
+    }
+  } else {
+    const img = document.createElement('img'); img.src = item.url; img.style.maxWidth='100%'; img.style.borderRadius='8px'; body.appendChild(img);
+  }
+  document.getElementById('viewDesc').textContent = item.desc || '';
+  document.getElementById('btnDownload').onclick = ()=>{ window.open(item.url, '_blank'); };
+}
+
+document.getElementById('btnCloseView').onclick = ()=>{ document.getElementById('modalView').classList.add('hidden'); };
+
+// Export JSON
+function exportJSON(){
+  const data = loadDB();
+  const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'elamanovich-backup.json'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// Search
+document.getElementById('search').addEventListener('input', (e)=>{
+  const q = e.target.value.toLowerCase().trim();
+  const filter = (list)=> list.filter(it => (it.title+ ' ' + (it.desc||'') + ' ' + (it.tag||'')).toLowerCase().includes(q));
+  renderGrid(filter(db.photos), 'photos', 'photo');
+  renderGrid(filter(db.videos), 'videos', 'video');
+  renderGrid(filter(db.archive), 'archive', 'archive');
+});
+
+// Initial render & auth
+initAuth();
+renderAll();
+
+// Safety note for user
+console.log('Elamanovich: локальные данные хранятся в твоём браузере (localStorage). Делай экспорт JSON как бэкап.');
+</script>
+</body>
+</html>
